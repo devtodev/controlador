@@ -1,0 +1,181 @@
+#define PIN_BUS_DE    9
+#define PIN_BUS_LED   13
+
+
+/*
+
+ *    Interfaz de comunicacion
+ *    cmiguens eagrorobots
+ *    11/05/13 freescale
+ *    16/09/13 arduino
+ */
+
+// Identificador unico de Dispositivo
+
+#define ID1                   1
+#define ID2                   1
+#define ID1BROADCAST          0
+#define ID2BROADCAST          0
+
+// bytes de la trama
+#define DIRECCION             0 //  XX00000000
+#define FUNCION               2 //  00X0000000
+#define DATOS                 3 //  000XXXXXX0
+#define CRC                   9 //  000000000X
+#define LARGOTRAMA            10
+
+// estados
+
+#define ESPERA_TRAMA                          0
+#define TRAMA_ENVIANDO                        1
+#define TRAMA_RECIBIENDO                      2  
+#define TRAMA_COMPLETA                        3
+#define TRAMA_PROCESADA_CORRECTAMENTE       100
+#define DELAY_ENTRE_TRAMA                     2
+#define TIME_TO_TIMEOUT                      50
+
+// funciones
+
+#define GETNUEVO              1
+#define GETTIPO               2
+#define SETLED                3
+
+// excepciones
+
+#define OTRO_DESTINATARIO     200
+#define FUNCION_DESCONOCIDA   201
+#define CRC_ERROR             203
+#define TIMEOUT               204
+
+void consultarNuevoSlave()
+{
+  // broadcast 00 funcion 2 datos 3 crc 9
+  unsigned char trama[LARGOTRAMA];
+  trama[0] = 0;
+  trama[1] = 0;
+  trama[2] = GETNUEVO;
+  trama[3] = 0;
+  trama[4] = 0;
+  trama[5] = 0;
+  trama[6] = 0;
+  trama[7] = 0;
+  trama[8] = 0;
+  trama[9] = tramaCRC(trama);
+  enviarTrama(trama);
+}
+
+void consultarTipo(String ID)
+{
+  // broadcast 00 funcion 2 datos 3 crc 9
+  unsigned char trama[LARGOTRAMA];
+  trama[0] = 0;
+  trama[1] = 1;
+  trama[2] = GETTIPO;
+  trama[3] = 0;
+  trama[4] = 0;
+  trama[5] = 0;
+  trama[6] = 0;
+  trama[7] = 0;
+  trama[8] = 0;
+  trama[9] = tramaCRC(trama);
+  enviarTrama(trama);
+}
+
+void setLed(unsigned char ID, unsigned char modo)
+{
+  // broadcast 00 funcion 2 datos 3 crc 9
+  unsigned char trama[LARGOTRAMA];
+  trama[0] = 0;
+  trama[1] = ID;
+  trama[2] = SETLED;
+  trama[3] = modo;
+  trama[4] = 0;
+  trama[5] = 0;
+  trama[6] = 0;
+  trama[7] = 0;
+  trama[8] = 0;
+  trama[9] = tramaCRC(trama);
+  enviarTrama(trama);
+}
+
+
+void enviarTrama(unsigned char trama[])
+{ 
+  gotoXY(0, 1);
+  LcdString(String("{"));
+  for (int i = 0; i < LARGOTRAMA; i++)
+  {
+    delay(DELAY_ENTRE_TRAMA);
+    enviarAlBus(trama[i]);
+    LcdString(String(trama[i]));
+    LcdString(",");
+  }
+  LcdString(String("}"));
+}
+
+void iniciarPinesBus()
+{
+  pinMode(PIN_BUS_DE, OUTPUT);
+  pinMode(1, OUTPUT);
+  pinMode(0, INPUT);
+  digitalWrite(0, HIGH);
+  Serial.begin(9600, SERIAL_8N1);
+}
+
+
+void habilitarEscritura()
+{
+  digitalWrite(PIN_BUS_DE, 1);
+}
+
+void habilitarLectura()
+{
+  digitalWrite(PIN_BUS_DE, 0);
+}
+
+void enviarAlBus(unsigned char caracter)
+{
+    digitalWrite(PIN_BUS_LED, HIGH);
+    habilitarEscritura();
+    delay(1);
+    Serial.write(caracter);
+    delay(2);
+    habilitarLectura();
+    digitalWrite(PIN_BUS_LED, LOW);
+}
+
+unsigned char tramaCRC(unsigned char trama[10])
+{
+	unsigned char crc = 0xFF;
+	unsigned char tempCRC;
+	
+	unsigned char tempLSB, flag;
+	int i, j;
+	
+	for (i = 0; i < CRC; i++) {
+		tempLSB = 0xFF & crc;
+
+		crc = tempLSB ^ trama[i];
+
+		for (j = 0; j < 8; j++) {
+			tempCRC = crc;
+			flag = tempCRC & 0x01;
+			crc = crc >> 1;
+
+			if (flag)
+				crc = crc ^ 0xA1;
+		} 
+	} 
+	return crc;
+}
+
+unsigned char leerDelBus()
+{
+  habilitarLectura();
+  if (Serial.available() > 0) {
+    //digitalWrite(PIN_BUS_LED, HIGH);
+    return Serial.read();
+    //digitalWrite(PIN_BUS_LED, LOW);
+  }
+  return 0;
+}
